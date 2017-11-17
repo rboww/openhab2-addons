@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014-2016 by the respective copyright holders.
+ * Copyright (c) 2010-2017 by the respective copyright holders.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -99,7 +99,7 @@ public class MainTVServerService implements UpnpIOParticipant, SamsungTvService 
     public void start() {
         if (pollingJob == null || pollingJob.isCancelled()) {
             logger.debug("Start refresh task, interval={}", pollingInterval);
-            pollingJob = scheduler.scheduleAtFixedRate(pollingRunnable, 0, pollingInterval, TimeUnit.MILLISECONDS);
+            pollingJob = scheduler.scheduleWithFixedDelay(pollingRunnable, 0, pollingInterval, TimeUnit.MILLISECONDS);
         }
     }
 
@@ -169,11 +169,15 @@ public class MainTVServerService implements UpnpIOParticipant, SamsungTvService 
     }
 
     @Override
+    public void onServiceSubscribed(String service, boolean succeeded) {
+    }
+
+    @Override
     public void onValueReceived(String variable, String value, String service) {
 
         String oldValue = stateMap.get(variable);
-        if (value.equals(oldValue)) {
-            logger.trace("Value haven't been changed, ignore update");
+        if ((value == null && oldValue == null) || (value != null && value.equals(oldValue))) {
+            logger.trace("Value '{}' for {} hasn't changed, ignoring update", value, variable);
             return;
         }
 

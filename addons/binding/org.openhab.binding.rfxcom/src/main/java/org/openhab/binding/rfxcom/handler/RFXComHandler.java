@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014-2016 by the respective copyright holders.
+ * Copyright (c) 2010-2017 by the respective copyright holders.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -11,25 +11,25 @@ package org.openhab.binding.rfxcom.handler;
 import static org.openhab.binding.rfxcom.RFXComBindingConstants.*;
 
 import java.util.List;
-import java.util.concurrent.ScheduledFuture;
 
 import org.eclipse.smarthome.core.library.types.DecimalType;
 import org.eclipse.smarthome.core.library.types.OnOffType;
-import org.eclipse.smarthome.core.thing.Bridge;
 import org.eclipse.smarthome.core.thing.ChannelUID;
 import org.eclipse.smarthome.core.thing.Thing;
 import org.eclipse.smarthome.core.thing.ThingStatus;
 import org.eclipse.smarthome.core.thing.ThingStatusDetail;
+import org.eclipse.smarthome.core.thing.ThingStatusInfo;
 import org.eclipse.smarthome.core.thing.ThingUID;
 import org.eclipse.smarthome.core.thing.binding.BaseThingHandler;
 import org.eclipse.smarthome.core.thing.binding.ThingHandler;
 import org.eclipse.smarthome.core.types.Command;
+import org.eclipse.smarthome.core.types.RefreshType;
 import org.eclipse.smarthome.core.types.State;
 import org.openhab.binding.rfxcom.RFXComValueSelector;
 import org.openhab.binding.rfxcom.internal.DeviceMessageListener;
 import org.openhab.binding.rfxcom.internal.config.RFXComDeviceConfiguration;
 import org.openhab.binding.rfxcom.internal.exceptions.RFXComException;
-import org.openhab.binding.rfxcom.internal.exceptions.RFXComNotImpException;
+import org.openhab.binding.rfxcom.internal.exceptions.RFXComMessageNotImplementedException;
 import org.openhab.binding.rfxcom.internal.messages.RFXComBaseMessage;
 import org.openhab.binding.rfxcom.internal.messages.RFXComBaseMessage.PacketType;
 import org.openhab.binding.rfxcom.internal.messages.RFXComMessage;
@@ -44,14 +44,11 @@ import org.slf4j.LoggerFactory;
  * @author Pauli Anttila - Initial contribution
  */
 public class RFXComHandler extends BaseThingHandler implements DeviceMessageListener {
+    private static final int LOW_BATTERY_LEVEL = 1;
 
-    private Logger logger = LoggerFactory.getLogger(RFXComHandler.class);
+    private final Logger logger = LoggerFactory.getLogger(RFXComHandler.class);
 
-    private final int LOW_BATTERY_LEVEL = 1;
-
-    ScheduledFuture<?> refreshJob;
     private RFXComBridgeHandler bridgeHandler;
-
     private RFXComDeviceConfiguration config;
 
     public RFXComHandler(Thing thing) {
@@ -64,94 +61,82 @@ public class RFXComHandler extends BaseThingHandler implements DeviceMessageList
 
         if (bridgeHandler != null) {
 
-            try {
-                PacketType packetType = RFXComMessageFactory
-                        .convertPacketType(channelUID.getThingUID().getThingTypeId().toUpperCase());
+            if (command instanceof RefreshType) {
+                logger.trace("Received unsupported Refresh command");
+            } else {
 
-                RFXComMessage msg = RFXComMessageFactory.createMessage(packetType);
+                try {
 
-                List<RFXComValueSelector> supportedValueSelectors = msg.getSupportedOutputValueSelectors();
+                    PacketType packetType = RFXComMessageFactory
+                            .convertPacketType(channelUID.getThingUID().getThingTypeId().toUpperCase());
 
-                RFXComValueSelector valSelector = RFXComValueSelector.getValueSelector(channelUID.getId());
+                    RFXComMessage msg = RFXComMessageFactory.createMessage(packetType);
 
-                if (supportedValueSelectors.contains(valSelector)) {
-                    msg.setSubType(msg.convertSubType(config.subType));
-                    msg.setDeviceId(config.deviceId);
-                    msg.convertFromState(valSelector, command);
+                    List<RFXComValueSelector> supportedValueSelectors = msg.getSupportedOutputValueSelectors();
 
-                    bridgeHandler.sendMessage(msg);
-                } else {
-                    logger.warn("RFXCOM doesn't support transmitting for channel '{}'", channelUID.getId());
+                    RFXComValueSelector valSelector = RFXComValueSelector.getValueSelector(channelUID.getId());
+
+                    if (supportedValueSelectors.contains(valSelector)) {
+                        msg.setConfig(config);
+                        msg.convertFromState(valSelector, command);
+
+                        bridgeHandler.sendMessage(msg);
+                    } else {
+                        logger.warn("RFXCOM doesn't support transmitting for channel '{}'", channelUID.getId());
+                    }
+
+                } catch (RFXComMessageNotImplementedException e) {
+                    logger.error("Message not supported", e);
+                } catch (RFXComException e) {
+                    logger.error("Transmitting error", e);
                 }
-
-            } catch (RFXComNotImpException e) {
-                logger.error("Message not supported", e.getMessage());
-            } catch (RFXComException e) {
-                logger.error("Transmitting error", e.getMessage());
             }
+
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void initialize() {
-        config = getConfigAs(RFXComDeviceConfiguration.class);
-        logger.debug("Initialized RFXCOM device handler for {}, deviceId={}, subType={}", getThing().getUID(),
-                config.deviceId, config.subType);
-
-        if (config.deviceId == null || config.subType == null) {
-            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
-                    "Initialized RFXCOM device missing deviceId or subType");
-        }
-
-        initializeBridge(getBridge().getHandler(), getBridge());
+        logger.debug("Initializing thing {}", getThing().getUID());
+        initializeBridge((getBridge() == null) ? null : getBridge().getHandler(),
+                (getBridge() == null) ? null : getBridge().getStatus());
     }
 
     @Override
-    public void bridgeHandlerInitialized(ThingHandler thingHandler, Bridge bridge) {
-        initializeBridge(thingHandler, bridge);
+    public void bridgeStatusChanged(ThingStatusInfo bridgeStatusInfo) {
+        logger.debug("bridgeStatusChanged {} for thing {}", bridgeStatusInfo, getThing().getUID());
+        initializeBridge((getBridge() == null) ? null : getBridge().getHandler(), bridgeStatusInfo.getStatus());
     }
 
-    private void initializeBridge(ThingHandler thingHandler, Bridge bridge) {
-        if (thingHandler != null && bridge != null) {
+    private void initializeBridge(ThingHandler thingHandler, ThingStatus bridgeStatus) {
+        logger.debug("initializeBridge {} for thing {}", bridgeStatus, getThing().getUID());
 
-            logger.debug("Bridge initialized");
+        config = getConfigAs(RFXComDeviceConfiguration.class);
+        if (config.deviceId == null || config.subType == null) {
+            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
+                    "RFXCOM device missing deviceId or subType");
+        } else if (thingHandler != null && bridgeStatus != null) {
 
             bridgeHandler = (RFXComBridgeHandler) thingHandler;
             bridgeHandler.registerDeviceStatusListener(this);
 
-            if (config.deviceId == null || config.subType == null) {
-                updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
-                        "RFXCOM device missing deviceId or subType");
+            if (bridgeStatus == ThingStatus.ONLINE) {
+                updateStatus(ThingStatus.ONLINE);
             } else {
-                if (bridge.getStatus() == ThingStatus.ONLINE) {
-                    updateStatus(ThingStatus.ONLINE);
-                } else {
-                    updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.BRIDGE_OFFLINE);
-                }
+                updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.BRIDGE_OFFLINE);
             }
+        } else {
+            updateStatus(ThingStatus.OFFLINE);
         }
     }
 
     @Override
-    public void bridgeHandlerDisposed(ThingHandler thingHandler, Bridge bridge) {
-        logger.debug("Bridge disposed");
+    public void dispose() {
+        logger.debug("Thing {} disposed.", getThing().getUID());
         if (bridgeHandler != null) {
             bridgeHandler.unregisterDeviceStatusListener(this);
         }
         bridgeHandler = null;
-    }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see org.eclipse.smarthome.core.thing.binding.BaseThingHandler#dispose()
-     */
-    @Override
-    public void dispose() {
-        logger.debug("Thing {} disposed.", getThing().getUID());
         super.dispose();
     }
 
@@ -161,105 +146,133 @@ public class RFXComHandler extends BaseThingHandler implements DeviceMessageList
             String id = message.getDeviceId();
             if (config.deviceId.equals(id)) {
                 RFXComBaseMessage msg = (RFXComBaseMessage) message;
-                String receivedId = packetTypeThingMap.get(msg.packetType).getId();
+                String receivedId = PACKET_TYPE_THING_TYPE_UID_MAP.get(msg.packetType).getId();
+                logger.debug("Received message from bridge: {} message: {}", bridge, message);
 
-                if (receivedId.equals(getThing().getUID().getThingTypeId())) {
+                if (receivedId.equals(getThing().getThingTypeUID().getId())) {
                     updateStatus(ThingStatus.ONLINE);
-                    logger.debug("Received message from bridge: {} message: {}", bridge, message);
 
                     List<RFXComValueSelector> supportedValueSelectors = msg.getSupportedInputValueSelectors();
 
                     if (supportedValueSelectors != null) {
                         for (RFXComValueSelector valueSelector : supportedValueSelectors) {
-                            switch (valueSelector) {
-                                case BATTERY_LEVEL:
-                                    updateState(CHANNEL_BATTERY_LEVEL, convertBatteryLevelToSystemWideLevel(
-                                            message.convertToState(valueSelector)));
-                                    break;
-                                case CHILL_FACTOR:
-                                    updateState(CHANNEL_CHILL_FACTOR, message.convertToState(valueSelector));
-                                    break;
-                                case COMMAND:
-                                    updateState(CHANNEL_COMMAND, message.convertToState(valueSelector));
-                                    break;
-                                case CONTACT:
-                                    updateState(CHANNEL_CONTACT, message.convertToState(valueSelector));
-                                    break;
-                                case DIMMING_LEVEL:
-                                    updateState(CHANNEL_DIMMING_LEVEL, message.convertToState(valueSelector));
-                                    break;
-                                case FORECAST:
-                                    updateState(CHANNEL_FORECAST, message.convertToState(valueSelector));
-                                    break;
-                                case GUST:
-                                    updateState(CHANNEL_GUST, message.convertToState(valueSelector));
-                                    break;
-                                case HUMIDITY:
-                                    updateState(CHANNEL_HUMIDITY, message.convertToState(valueSelector));
-                                    break;
-                                case HUMIDITY_STATUS:
-                                    updateState(CHANNEL_HUMIDITY_STATUS, message.convertToState(valueSelector));
-                                    break;
-                                case INSTANT_AMPS:
-                                    updateState(CHANNEL_INSTANT_AMPS, message.convertToState(valueSelector));
-                                    break;
-                                case INSTANT_POWER:
-                                    updateState(CHANNEL_INSTANT_POWER, message.convertToState(valueSelector));
-                                    break;
-                                case LOW_BATTERY:
-                                    updateState(CHANNEL_BATTERY_LEVEL,
-                                            isLowBattery(message.convertToState(valueSelector)));
-                                    break;
+                            try {
+                                switch (valueSelector) {
+                                    case BATTERY_LEVEL:
+                                        updateState(CHANNEL_BATTERY_LEVEL, convertBatteryLevelToSystemWideLevel(
+                                                message.convertToState(valueSelector)));
+                                        break;
+                                    case CHIME_SOUND:
+                                        updateState(CHANNEL_CHIME_SOUND, message.convertToState(valueSelector));
+                                        break;
+                                    case COMMAND:
+                                        updateState(CHANNEL_COMMAND, message.convertToState(valueSelector));
+                                        break;
+                                    case COMMAND_ID:
+                                        updateState(CHANNEL_COMMAND_ID, message.convertToState(valueSelector));
+                                        break;
+                                    case CONTACT:
+                                        updateState(CHANNEL_CONTACT, message.convertToState(valueSelector));
+                                        break;
+                                    case CONTACT_1:
+                                        updateState(CHANNEL_CONTACT_1, message.convertToState(valueSelector));
+                                        break;
+                                    case CONTACT_2:
+                                        updateState(CHANNEL_CONTACT_2, message.convertToState(valueSelector));
+                                        break;
+                                    case CONTACT_3:
+                                        updateState(CHANNEL_CONTACT_3, message.convertToState(valueSelector));
+                                        break;
+                                    case DIMMING_LEVEL:
+                                        updateState(CHANNEL_DIMMING_LEVEL, message.convertToState(valueSelector));
+                                        break;
+                                    case FORECAST:
+                                        updateState(CHANNEL_FORECAST, message.convertToState(valueSelector));
+                                        break;
+                                    case HUMIDITY:
+                                        updateState(CHANNEL_HUMIDITY, message.convertToState(valueSelector));
+                                        break;
+                                    case HUMIDITY_STATUS:
+                                        updateState(CHANNEL_HUMIDITY_STATUS, message.convertToState(valueSelector));
+                                        break;
+                                    case INSTANT_AMPS:
+                                        updateState(CHANNEL_INSTANT_AMPS, message.convertToState(valueSelector));
+                                        break;
+                                    case INSTANT_POWER:
+                                        updateState(CHANNEL_INSTANT_POWER, message.convertToState(valueSelector));
+                                        break;
+                                    case LOW_BATTERY:
+                                        updateState(CHANNEL_BATTERY_LEVEL,
+                                                isLowBattery(message.convertToState(valueSelector)));
+                                        break;
 
-                                case MOOD:
-                                    updateState(CHANNEL_MOOD, message.convertToState(valueSelector));
-                                    break;
-                                case MOTION:
-                                    updateState(CHANNEL_MOTION, message.convertToState(valueSelector));
-                                    break;
-                                case PRESSURE:
-                                    updateState(CHANNEL_PRESSURE, message.convertToState(valueSelector));
-                                    break;
-                                case RAIN_RATE:
-                                    updateState(CHANNEL_RAIN_RATE, message.convertToState(valueSelector));
-                                    break;
-                                case RAIN_TOTAL:
-                                    updateState(CHANNEL_RAIN_TOTAL, message.convertToState(valueSelector));
-                                    break;
-                                case SET_POINT:
-                                    updateState(CHANNEL_SET_POINT, message.convertToState(valueSelector));
-                                    break;
-                                case SHUTTER:
-                                    updateState(CHANNEL_SHUTTER, message.convertToState(valueSelector));
-                                    break;
-                                case SIGNAL_LEVEL:
-                                    updateState(CHANNEL_SIGNAL_LEVEL,
-                                            convertSignalLevelToSystemWideLevel(message.convertToState(valueSelector)));
-                                    break;
-                                case STATUS:
-                                    updateState(CHANNEL_STATUS, message.convertToState(valueSelector));
-                                    break;
-                                case TEMPERATURE:
-                                    updateState(CHANNEL_TEMPERATURE, message.convertToState(valueSelector));
-                                    break;
-                                case TOTAL_AMP_HOURS:
-                                    updateState(CHANNEL_TOTAL_AMP_HOURS, message.convertToState(valueSelector));
-                                    break;
-                                case TOTAL_USAGE:
-                                    updateState(CHANNEL_TOTAL_USAGE, message.convertToState(valueSelector));
-                                    break;
-                                case VOLTAGE:
-                                    updateState(CHANNEL_VOLTAGE, message.convertToState(valueSelector));
-                                    break;
-                                case WIND_DIRECTION:
-                                    updateState(CHANNEL_WIND_DIRECTION, message.convertToState(valueSelector));
-                                    break;
-                                case WIND_SPEED:
-                                    updateState(CHANNEL_WIND_SPEED, message.convertToState(valueSelector));
-                                    break;
-                                default:
-                                    logger.debug("Unsupported value selector '{}'", valueSelector);
-                                    break;
+                                    case MOOD:
+                                        updateState(CHANNEL_MOOD, message.convertToState(valueSelector));
+                                        break;
+                                    case MOTION:
+                                        updateState(CHANNEL_MOTION, message.convertToState(valueSelector));
+                                        break;
+                                    case PRESSURE:
+                                        updateState(CHANNEL_PRESSURE, message.convertToState(valueSelector));
+                                        break;
+                                    case RAIN_RATE:
+                                        updateState(CHANNEL_RAIN_RATE, message.convertToState(valueSelector));
+                                        break;
+                                    case RAIN_TOTAL:
+                                        updateState(CHANNEL_RAIN_TOTAL, message.convertToState(valueSelector));
+                                        break;
+                                    case RAW_MESSAGE:
+                                        updateState(CHANNEL_RAW_MESSAGE, message.convertToState(valueSelector));
+                                        break;
+                                    case RAW_PAYLOAD:
+                                        updateState(CHANNEL_RAW_PAYLOAD, message.convertToState(valueSelector));
+                                        break;
+                                    case SET_POINT:
+                                        updateState(CHANNEL_SET_POINT, message.convertToState(valueSelector));
+                                        break;
+                                    case SHUTTER:
+                                        updateState(CHANNEL_SHUTTER, message.convertToState(valueSelector));
+                                        break;
+                                    case SIGNAL_LEVEL:
+                                        updateState(CHANNEL_SIGNAL_LEVEL, convertSignalLevelToSystemWideLevel(
+                                                message.convertToState(valueSelector)));
+                                        break;
+                                    case STATUS:
+                                        updateState(CHANNEL_STATUS, message.convertToState(valueSelector));
+                                        break;
+                                    case TEMPERATURE:
+                                        updateState(CHANNEL_TEMPERATURE, message.convertToState(valueSelector));
+                                        break;
+                                    case CHILL_TEMPERATURE:
+                                        updateState(CHANNEL_CHILL_TEMPERATURE, message.convertToState(valueSelector));
+                                        break;
+                                    case TOTAL_AMP_HOUR:
+                                        updateState(CHANNEL_TOTAL_AMP_HOUR, message.convertToState(valueSelector));
+                                        break;
+                                    case TOTAL_USAGE:
+                                        updateState(CHANNEL_TOTAL_USAGE, message.convertToState(valueSelector));
+                                        break;
+                                    case UV:
+                                        updateState(CHANNEL_UV, message.convertToState(valueSelector));
+                                        break;
+                                    case VOLTAGE:
+                                        updateState(CHANNEL_VOLTAGE, message.convertToState(valueSelector));
+                                        break;
+                                    case WIND_DIRECTION:
+                                        updateState(CHANNEL_WIND_DIRECTION, message.convertToState(valueSelector));
+                                        break;
+                                    case AVG_WIND_SPEED:
+                                        updateState(CHANNEL_AVG_WIND_SPEED, message.convertToState(valueSelector));
+                                        break;
+                                    case WIND_SPEED:
+                                        updateState(CHANNEL_WIND_SPEED, message.convertToState(valueSelector));
+                                        break;
+                                    default:
+                                        logger.debug("Unsupported value selector '{}'", valueSelector);
+                                        break;
+                                }
+                            } catch (RFXComException e) {
+                                logger.trace("{} does not handle {}", valueSelector, message);
                             }
                         }
                     }
@@ -267,7 +280,7 @@ public class RFXComHandler extends BaseThingHandler implements DeviceMessageList
                 }
             }
         } catch (Exception e) {
-            logger.error("Error occured during message receiving: ", e.getMessage());
+            logger.error("Error occurred during message receiving", e);
         }
     }
 
@@ -280,7 +293,7 @@ public class RFXComHandler extends BaseThingHandler implements DeviceMessageList
     private State convertSignalLevelToSystemWideLevel(State signalLevel) {
 
         int level = ((DecimalType) signalLevel).intValue();
-        int newLevel = 0;
+        int newLevel;
 
         /*
          * RFXCOM signal levels are always between 0-15.
@@ -335,11 +348,6 @@ public class RFXComHandler extends BaseThingHandler implements DeviceMessageList
      * @return Battery level in system wide level
      */
     private State convertBatteryLevelToSystemWideLevel(State batteryLevel) {
-
-        /*
-         * RFXCOM signal levels are always between 0-9.
-         *
-         */
         int level = ((DecimalType) batteryLevel).intValue();
         level = (level + 1) * 10;
         return new DecimalType(level);
