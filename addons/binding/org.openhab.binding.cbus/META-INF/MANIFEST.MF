@@ -3,10 +3,12 @@ Bundle-ManifestVersion: 2
 Bundle-Name: CBus Binding
 Bundle-SymbolicName: org.openhab.binding.cbus;singleton:=true
 Bundle-Vendor: openHAB
-Bundle-Version: 2.0.0.qualifier
-Bundle-RequiredExecutionEnvironment: JavaSE-1.7
+Bundle-Version: 2.2.0.qualifier
+Bundle-RequiredExecutionEnvironment: JavaSE-1.8
 Bundle-ClassPath: .
 Import-Package: 
+ org.openhab.binding.cbus,
+ org.openhab.binding.cbus.handler,
  com.google.common.base,
  com.google.common.collect,
  org.eclipse.jetty.util.thread,
@@ -22,5 +24,6 @@ Import-Package:
  org.osgi.framework,
  org.slf4j
 Service-Component: OSGI-INF/*.xml
-Export-Package: org.openhab.binding.cbus,
+Export-Package: 
+ org.openhab.binding.cbus,
  org.openhab.binding.cbus.handler
