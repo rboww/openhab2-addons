@@ -85,25 +85,4 @@ public class CBusGroupDiscovery extends AbstractDiscoveryService {
         }
     }
 
-    @Override
-    protected void startBackgroundDiscovery() {
-        // TODO Auto-generated method stub
-        super.startBackgroundDiscovery();
-    }
-
-    @Override
-    protected void stopBackgroundDiscovery() {
-        // TODO Auto-generated method stub
-        super.stopBackgroundDiscovery();
-    }
-
-    public void activate() {
-        // cgateHandler.registerDiscoveryService(this);
-    }
-
-    @Override
-    public void deactivate() {
-        // cgateHandler.unregisterDiscoveryService();
-    }
-
 }

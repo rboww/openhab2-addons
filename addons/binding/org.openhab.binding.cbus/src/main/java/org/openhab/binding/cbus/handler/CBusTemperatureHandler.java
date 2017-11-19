@@ -15,8 +15,6 @@ import org.openhab.binding.cbus.CBusBindingConstants;
 import org.openhab.binding.cbus.internal.cgate.Application;
 import org.openhab.binding.cbus.internal.cgate.CGateException;
 import org.openhab.binding.cbus.internal.cgate.Group;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * The {@link CBusTemperatureHandler} is responsible for handling commands, which are
@@ -25,8 +23,6 @@ import org.slf4j.LoggerFactory;
  * @author Scott Linton - Initial contribution
  */
 public class CBusTemperatureHandler extends CBusGroupHandler {
-
-    private Logger logger = LoggerFactory.getLogger(CBusTemperatureHandler.class);
 
     public CBusTemperatureHandler(Thing thing) {
         super(thing);

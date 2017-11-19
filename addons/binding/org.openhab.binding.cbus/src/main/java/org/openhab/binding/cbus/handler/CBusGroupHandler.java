@@ -55,7 +55,7 @@ public abstract class CBusGroupHandler extends BaseThingHandler {
         } catch (Exception e) {
             logger.error("Cannot create group {} ", getConfig().get(CBusBindingConstants.CONFIG_GROUP_ID).toString(),
                     e);
-            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR);
+            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR);
             return;
         }
         updateStatus();

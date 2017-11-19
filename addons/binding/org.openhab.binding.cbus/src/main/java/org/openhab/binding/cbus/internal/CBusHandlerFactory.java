@@ -77,14 +77,14 @@ public class CBusHandlerFactory extends BaseThingHandlerFactory {
 
     private void registerDeviceDiscoveryService(CBusCGateHandler cbusCgateHandler) {
         CBusNetworkDiscovery discoveryService = new CBusNetworkDiscovery(cbusCgateHandler);
-        discoveryService.activate();
+	//        discoveryService.activate();
         super.bundleContext.registerService(DiscoveryService.class.getName(), discoveryService,
                 new Hashtable<String, Object>());
     }
 
     private void registerDeviceDiscoveryService(CBusNetworkHandler cbusNetworkHandler) {
         CBusGroupDiscovery discoveryService = new CBusGroupDiscovery(cbusNetworkHandler);
-        discoveryService.activate();
+	//        discoveryService.activate();
         bundleContext.registerService(DiscoveryService.class.getName(), discoveryService,
                 new Hashtable<String, Object>());
     }

@@ -65,13 +65,7 @@ public class CBusNetworkHandler extends BaseBridgeHandler {
             updateStatus(ThingStatus.UNINITIALIZED, ThingStatusDetail.COMMUNICATION_ERROR);
         }
         updateStatus();
-        // now also re-initialize all group handlers
-        for (Thing thing : getThing().getThings()) {
-            ThingHandler handler = thing.getHandler();
-            if (handler != null) {
-                handler.initialize();
-            }
-        }
+
         scheduler.scheduleAtFixedRate(networkSyncRunnable, (int) (60 * Math.random()),
                 Integer.parseInt(getConfig().get(CBusBindingConstants.PROPERTY_NETWORK_SYNC).toString()),
                 TimeUnit.SECONDS);
