@@ -65,7 +65,7 @@ public class Response implements Iterable<String> {
 
                         if (logger.isDebugEnabled()) {
                             for (String response : array_response) {
-                                logger.trace("response: " + response);
+                                logger.trace("response: {}", response);
                             }
                         }
                     } catch (IOException e) {
