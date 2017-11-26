@@ -18,6 +18,7 @@ import org.openhab.binding.cbus.CBusBindingConstants;
 import org.openhab.binding.cbus.internal.cgate.Application;
 import org.openhab.binding.cbus.internal.cgate.CGateException;
 import org.openhab.binding.cbus.internal.cgate.Group;
+import org.openhab.binding.cbus.internal.cgate.Network;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -78,8 +79,13 @@ public class CBusLightHandler extends CBusGroupHandler {
 
     @Override
     protected Group getGroup(int groupID) throws CGateException {
-        Application lighting = cBusNetworkHandler.getNetwork()
+        Network network = cBusNetworkHandler.getNetwork();
+        if (network != null)
+        {
+            Application lighting = network
                 .getApplication(Integer.parseInt(CBusBindingConstants.CBUS_APPLICATION_LIGHTING));
-        return lighting.getGroup(groupID);
+            return lighting.getGroup(groupID);
+        }
+        return null;
     }
 }
