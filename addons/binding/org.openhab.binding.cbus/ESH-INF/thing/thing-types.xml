@@ -101,7 +101,7 @@
     </channel-type>
 
     <channel-type id="level-channel">
-        <item-type>Number</item-type>
+        <item-type>Dimmer</item-type>
         <label>Level Channel</label>
         <description>Group channel for CBus variable value lighting groups</description>
     </channel-type>
