@@ -72,6 +72,6 @@ public class CGateException extends Exception {
         message += new_line + new_line + sw.toString();
 
         // logger.error(message);
-        logger.error(response, e == null ? "" : e.getMessage());
+        logger.error("{}",response, e == null ? "" : e.getMessage());
     }
 }
