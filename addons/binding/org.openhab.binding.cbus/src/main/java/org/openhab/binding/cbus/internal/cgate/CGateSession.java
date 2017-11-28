@@ -59,7 +59,7 @@ public class CGateSession extends CGateObject {
     CGateSession(InetAddress cgate_server, int command_port, int event_port, int status_change_port) {
         super(null);
         if (cgate_server == null) {
-            throw new NullPointerException("cgate_server cannot be null");
+            throw new IllegalArgumentException("cgate_server cannot be null");
         }
 
         setupSubtreeCache("project");
@@ -431,7 +431,7 @@ public class CGateSession extends CGateObject {
 
         @Override
         protected void logConnected() throws IOException {
-            logger.debug(getInputReader().readLine());
+            logger.debug("{}",getInputReader().readLine());
         }
 
         @Override
