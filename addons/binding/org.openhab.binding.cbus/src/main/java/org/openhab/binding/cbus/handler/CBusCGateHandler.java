@@ -186,8 +186,8 @@ public class CBusCGateHandler extends BaseBridgeHandler {
                 // now also re-initialize all network handlers
                 for (Thing thing : getThing().getThings()) {
                     ThingHandler handler = thing.getHandler();
-                    if (handler != null) {
-                        handler.initialize();
+                    if (handler instanceof CBusNetworkHandler) {
+                        ((CBusNetworkHandler) handler).cgateOnline();
                     }
                 }
             }

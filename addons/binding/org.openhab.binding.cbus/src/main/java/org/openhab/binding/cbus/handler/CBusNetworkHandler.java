@@ -8,7 +8,10 @@
  */
 package org.openhab.binding.cbus.handler;
 
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+
+
 
 import org.eclipse.smarthome.core.thing.Bridge;
 import org.eclipse.smarthome.core.thing.ChannelUID;
@@ -21,6 +24,7 @@ import org.eclipse.smarthome.core.types.Command;
 import org.openhab.binding.cbus.CBusBindingConstants;
 import org.openhab.binding.cbus.internal.cgate.CGateException;
 import org.openhab.binding.cbus.internal.cgate.Network;
+import org.openhab.binding.cbus.internal.cgate.Project;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,8 +38,10 @@ public class CBusNetworkHandler extends BaseBridgeHandler {
 
     private Logger logger = LoggerFactory.getLogger(this.getClass());
     private CBusCGateHandler bridgeHandler;
-    private Network network;
-
+    private Network network = null;
+    private Project projectObject = null;
+    private ScheduledFuture<?> initNetwork = null;
+    private ScheduledFuture<?> networkSync = null;
     public CBusNetworkHandler(Bridge thing) {
         super(thing);
         if (thing == null) {
@@ -50,37 +56,75 @@ public class CBusNetworkHandler extends BaseBridgeHandler {
 
     @Override
     public void initialize() {
+        logger.debug("initialize --");
         getCBusCGateHandler();
         if (!bridgeHandler.getThing().getStatus().equals(ThingStatus.ONLINE)) {
+            logger.debug("bridge not online");
             updateStatus(ThingStatus.OFFLINE);
             return;
         }
+        logger.debug("Bridge online so init properly");
+        cgateOnline();
+    }
+
+    public void cgateOnline() {
+        logger.debug("cgateOnline");
         String networkID = getConfig().get(CBusBindingConstants.PROPERTY_ID).toString();
         String project = getConfig().get(CBusBindingConstants.PROPERTY_PROJECT).toString();
         try {
-            network = (Network) getCBusCGateHandler().getCGateSession()
+            if (projectObject == null)
+                projectObject = (Project) getCBusCGateHandler().getCGateSession()
+                    .getCGateObject("//" + project );
+            if (network == null)
+                network = (Network) getCBusCGateHandler().getCGateSession()
                     .getCGateObject("//" + project + "/" + networkID);
+            String state = network.getState();
+            logger.debug("Network state is {}",state);
+            if ("new".equals(state))
+            {
+                projectObject.start();
+                logger.debug("Need to wait for it to be synced");
+            } else if ("sync".equals(state))
+            {
+                logger.debug("Network is syncing so wait for it to be ok");
+            }
+            if (!"ok".equals(state))
+            {
+                if (initNetwork == null || initNetwork.isCancelled())
+                {
+                    initNetwork = scheduler.scheduleAtFixedRate(checkNetworkOnline, 30,30, TimeUnit.SECONDS);
+                    logger.debug("Schedule a check every minute");
+                } else
+                    logger.debug("initNetwork alreadys started");
+                return;
+            }
+                
+            logger.debug("State should be ok !!!!!!");
+                
+            
         } catch (CGateException e) {
             logger.error("Cannot load C-Bus network {}", networkID, e);
             updateStatus(ThingStatus.UNINITIALIZED, ThingStatusDetail.COMMUNICATION_ERROR);
         }
+        
         updateStatus();
 
-        scheduler.scheduleAtFixedRate(networkSyncRunnable, (int) (60 * Math.random()),
-                Integer.parseInt(getConfig().get(CBusBindingConstants.PROPERTY_NETWORK_SYNC).toString()),
-                TimeUnit.SECONDS);
-    }
 
+    }
     public void updateStatus() {
+        logger.debug("updateStatus");
         ThingStatus lastStatus = getThing().getStatus();
         try {
             if (!getCBusCGateHandler().getThing().getStatus().equals(ThingStatus.ONLINE)) {
                 updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.BRIDGE_OFFLINE, "CGate connection offline");
             } else if (network == null) {
+                logger.debug("No network - set configuration error");
                 updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR);
             } else if (network.isOnline()) {
+                logger.debug("Network is online");
                 updateStatus(ThingStatus.ONLINE);
             } else {
+                logger.debug("Network is offline");
                 updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR,
                         "Network is not reporting online");
             }
@@ -90,6 +134,16 @@ public class CBusNetworkHandler extends BaseBridgeHandler {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR);
         }
         if (!getThing().getStatus().equals(lastStatus)) {
+            if (lastStatus == ThingStatus.OFFLINE)
+            {
+                if (networkSync == null || networkSync.isCancelled())
+                    networkSync = scheduler.scheduleAtFixedRate(networkSyncRunnable, (int) (10 * Math.random()),
+                                                                Integer.parseInt(getConfig().get(CBusBindingConstants.PROPERTY_NETWORK_SYNC).toString()),
+                                                                TimeUnit.SECONDS);
+            } else {
+                networkSync.cancel(false);
+            }
+
             for (Thing thing : getThing().getThings()) {
                 ThingHandler handler = thing.getHandler();
                 if (handler instanceof CBusGroupHandler) {
@@ -131,6 +185,22 @@ public class CBusNetworkHandler extends BaseBridgeHandler {
                 }
             } catch (CGateException e) {
                 logger.error("Cannot start network sync on network {} ", network.getNetworkID());
+            }
+        }
+    };
+    private Runnable checkNetworkOnline = new Runnable() {
+        @Override
+        public void run() {
+            try {
+                if (network != null && network.isOnline())
+                {
+                    logger.debug("Network is online");
+                    initNetwork.cancel(false);
+                    updateStatus();
+                } else
+                    logger.debug("Network still not online");
+            } catch (CGateException e) {
+                logger.error("Cannot check if network is online {} ", network.getNetworkID());
             }
         }
     };
