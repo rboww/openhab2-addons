@@ -52,7 +52,7 @@ public class CGateSession extends CGateObject {
 
     private boolean pingKeepAlive = true;
 
-    private boolean connected = false;
+    private volatile boolean connected = false;
 
     private String sessionID;
 
@@ -127,6 +127,7 @@ public class CGateSession extends CGateObject {
             command_connection.start();
             event_connection.start();
             status_change_connection.start();
+            Response.startThreadPool();
             connected = true;
             if (pingKeepAlive) {
                 ping_connections.start();
@@ -174,7 +175,7 @@ public class CGateSession extends CGateObject {
                     writer.close();
                 }
                 piped_writers.clear();
-                Response.thread_pool.shutdownNow();
+                Response.stopThreadPool();
                 command_connection.stop();
                 event_connection.stop();
                 status_change_connection.stop();
@@ -250,9 +251,9 @@ public class CGateSession extends CGateObject {
 
         private Socket socket;
 
-        private volatile BufferedReader input_reader;
+        private volatile BufferedReader input_reader = null;
 
-        private PrintWriter output_stream;
+        private PrintWriter output_stream = null;
 
         protected CGateConnection(InetAddress server, int port, boolean create_output) {
             this.server = server;
@@ -431,7 +432,8 @@ public class CGateSession extends CGateObject {
 
         @Override
         protected void logConnected() throws IOException {
-            logger.debug("{}",getInputReader().readLine());
+            String str = getInputReader().readLine();
+            logger.debug("{}",str);
         }
 
         @Override

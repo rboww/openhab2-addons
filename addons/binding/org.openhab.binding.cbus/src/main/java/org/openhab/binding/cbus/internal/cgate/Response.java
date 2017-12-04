@@ -36,12 +36,14 @@ public class Response implements Iterable<String> {
 
     private boolean response_generated = false;
 
-    protected static final ThreadPoolExecutor thread_pool;
+    protected static ThreadPoolExecutor thread_pool = null;
 
-    static {
+    static void startThreadPool() {
         thread_pool = (ThreadPoolExecutor) ThreadPoolManager.getPool("CGateResponses");
     }
-
+    static void stopThreadPool() {
+        thread_pool.shutdownNow();
+    }
     Response(BufferedReader response_reader) throws CGateException {
         try {
             this.response_reader = response_reader;
