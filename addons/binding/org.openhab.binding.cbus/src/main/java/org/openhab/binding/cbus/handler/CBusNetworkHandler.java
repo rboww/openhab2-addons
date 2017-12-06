@@ -66,9 +66,19 @@ public class CBusNetworkHandler extends BaseBridgeHandler {
         logger.debug("Bridge online so init properly");
         cgateOnline();
     }
-
-    public void cgateOnline() {
-        logger.debug("cgateOnline");
+    public void cgateStateChanged(boolean isOnline) {
+        logger.debug("CgateStateChanged {}",isOnline);
+        if (!isOnline)
+        {
+            network = null;
+            projectObject = null;
+            updateStatus();
+        } else
+            cgateOnline();
+    }
+    private void cgateOnline() {
+        ThingStatus lastStatus = getThing().getStatus();
+        logger.debug("cgateOnline {}", lastStatus);
         String networkID = getConfig().get(CBusBindingConstants.PROPERTY_ID).toString();
         String project = getConfig().get(CBusBindingConstants.PROPERTY_PROJECT).toString();
         try {
@@ -96,6 +106,7 @@ public class CBusNetworkHandler extends BaseBridgeHandler {
                     logger.debug("Schedule a check every minute");
                 } else
                     logger.debug("initNetwork alreadys started");
+                updateStatus();
                 return;
             }
                 
@@ -198,9 +209,14 @@ public class CBusNetworkHandler extends BaseBridgeHandler {
                     initNetwork.cancel(false);
                     updateStatus();
                 } else
-                    logger.debug("Network still not online");
+                {
+                    ThingStatus lastStatus = getThing().getStatus();
+                    logger.debug("Network still not online {}", lastStatus);
+                    updateStatus();
+                }
             } catch (CGateException e) {
                 logger.error("Cannot check if network is online {} ", network.getNetworkID());
+                updateStatus();
             }
         }
     };

@@ -15,7 +15,7 @@ import java.util.GregorianCalendar;
 import java.util.LinkedList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-
+import java.lang.Thread;
 import org.eclipse.smarthome.config.core.Configuration;
 import org.eclipse.smarthome.core.common.ThreadPoolManager;
 import org.eclipse.smarthome.core.library.types.DecimalType;
@@ -98,15 +98,13 @@ public class CBusCGateHandler extends BaseBridgeHandler {
         public void run() {
             while (!isInterrupted()) {
                 try {
-                    if (cGateSession == null || !cGateSession.isConnected()
-                            || !getThing().getStatus().equals(ThingStatus.ONLINE)) {
-                        connect();
-                    } else {
-                        if (!CGateInterface.noop(cGateSession)) {
-                            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR);
+                    if (cGateSession == null || !cGateSession.isConnected()) {
+                        if (!getThing().getStatus().equals(ThingStatus.ONLINE))
                             connect();
+                        else {
+                            updateStatus();
                         }
-                    }
+                    } 
                 } catch (Exception e) {
                 }
                 try {
@@ -153,7 +151,7 @@ public class CBusCGateHandler extends BaseBridgeHandler {
             } catch (CGateConnectException e) {
                 updateStatus();
                 if (e.getMessage().equals("Connection refused")) {
-                    logger.error("Failed to connect to CGate: {}", e.getMessage());
+                    logger.error("Failed to connect to CGate: Connection refused");
                 } else {
                     logger.error("Failed to connect to CGate: {}", e);
                 }
@@ -175,7 +173,8 @@ public class CBusCGateHandler extends BaseBridgeHandler {
             }
         }
         if (!getThing().getStatus().equals(lastStatus)) {
-            updateChildThings();
+            boolean isOnline = getThing().getStatus().equals(ThingStatus.ONLINE);
+            updateChildThings(isOnline);
         }
     }
 
@@ -187,14 +186,14 @@ public class CBusCGateHandler extends BaseBridgeHandler {
                 for (Thing thing : getThing().getThings()) {
                     ThingHandler handler = thing.getHandler();
                     if (handler instanceof CBusNetworkHandler) {
-                        ((CBusNetworkHandler) handler).cgateOnline();
+                        ((CBusNetworkHandler) handler).cgateStateChanged(true);
                     }
                 }
             }
         });
     }
 
-    private void updateChildThings() {
+    private void updateChildThings(boolean isOnline) {
         threadPool.execute(new Runnable() {
             @Override
             public void run() {
@@ -202,7 +201,7 @@ public class CBusCGateHandler extends BaseBridgeHandler {
                 for (Thing thing : getThing().getThings()) {
                     ThingHandler handler = thing.getHandler();
                     if (handler instanceof CBusNetworkHandler) {
-                        ((CBusNetworkHandler) handler).updateStatus();
+                        ((CBusNetworkHandler) handler).cgateStateChanged(isOnline);
                     }
                 }
             }
