@@ -69,7 +69,7 @@ public final class Project extends CGateObject implements Comparable<Project> {
 
     @Override
     public int compareTo(Project o) {
-        return project_name.compareTo(project_name);
+        return project_name.compareTo(o.project_name);
     }
 
     /**
