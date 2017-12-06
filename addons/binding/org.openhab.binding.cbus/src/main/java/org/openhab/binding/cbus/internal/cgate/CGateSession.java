@@ -127,7 +127,6 @@ public class CGateSession extends CGateObject {
             command_connection.start();
             event_connection.start();
             status_change_connection.start();
-            Response.startThreadPool();
             connected = true;
             if (pingKeepAlive) {
                 ping_connections.start();
@@ -175,7 +174,6 @@ public class CGateSession extends CGateObject {
                     writer.close();
                 }
                 piped_writers.clear();
-                Response.stopThreadPool();
                 command_connection.stop();
                 event_connection.stop();
                 status_change_connection.stop();
