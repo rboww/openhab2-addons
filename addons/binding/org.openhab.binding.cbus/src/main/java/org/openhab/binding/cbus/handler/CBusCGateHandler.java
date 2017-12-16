@@ -402,7 +402,7 @@ public class CBusCGateHandler extends BaseBridgeHandler {
 
                         ChannelUID channelUID = thing.getChannel(CBusBindingConstants.CHANNEL_VALUE).getUID();
                         DecimalType val = new DecimalType(value);
-                        // updateState(channelUID, val);
+                        updateState(channelUID, val);
                         logger.trace("Updating CBus Trigger Group {} with value {}", thing.getUID(), value);
                         handled = true;
                     }

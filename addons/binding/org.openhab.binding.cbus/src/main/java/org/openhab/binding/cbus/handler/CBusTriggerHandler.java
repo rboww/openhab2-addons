@@ -39,16 +39,8 @@ public class CBusTriggerHandler extends CBusGroupHandler {
         if (channelUID.getId().equals(CBusBindingConstants.CHANNEL_VALUE)) {
             logger.debug("Channel command {}: {}", channelUID.getAsString(), command.toString());
             try {
-                if (command instanceof OnOffType) {
-                    if (command.equals(OnOffType.ON)) {
-
-                        group.ramp(255, 0);
-
-                    } else if (command.equals(OnOffType.OFF)) {
-                        group.ramp(0, 0);
-                    }
-                } else if (command instanceof DecimalType) {
-                    group.ramp((int) Math.round(Double.parseDouble(command.toString())), 0);
+                if (command instanceof DecimalType) {
+                    group.TriggerEvent((int) Math.round(Double.parseDouble(command.toString())));
                 }
             } catch (CGateException e) {
                 logger.error("Failed to send trigger command {} to {}", command.toString(), group.toString(), e);
